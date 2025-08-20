@@ -67,6 +67,12 @@ _envs = {
     "Go1JoystickRoughTerrain": functools.partial(
         go1_joystick.Joystick, task="rough_terrain"
     ),
+    "Go1JoystickRoughTerrainWithHeightScanner": functools.partial(
+        go1_joystick.Joystick, task="rough_terrain_with_height_scanner"
+    ),
+    "Go1JoystickRoughTerrainWithTouchGrid": functools.partial(
+        go1_joystick.Joystick, task="rough_terrain_with_touch_grid"
+    ),
     "Go1Getup": go1_getup.Getup,
     "Go1Handstand": go1_handstand.Handstand,
     "Go1Footstand": go1_handstand.Footstand,
@@ -101,6 +107,8 @@ _cfgs = {
     "G1JoystickRoughTerrain": g1_joystick.default_config,
     "Go1JoystickFlatTerrain": go1_joystick.default_config,
     "Go1JoystickRoughTerrain": go1_joystick.default_config,
+    "Go1JoystickRoughTerrainWithHeightScanner": go1_joystick.default_config,
+    "Go1JoystickRoughTerrainWithTouchGrid": go1_joystick.default_config,
     "Go1Getup": go1_getup.default_config,
     "Go1Handstand": go1_handstand.default_config,
     "Go1Footstand": go1_handstand.default_config,
@@ -125,6 +133,8 @@ _randomizer = {
     "G1JoystickRoughTerrain": g1_randomize.domain_randomize,
     "Go1JoystickFlatTerrain": go1_randomize.domain_randomize,
     "Go1JoystickRoughTerrain": go1_randomize.domain_randomize,
+    "Go1JoystickRoughTerrainWithHeightScanner": go1_randomize.domain_randomize,
+    "Go1JoystickRoughTerrainWithTouchGrid": go1_randomize.domain_randomize,
     "Go1Getup": go1_randomize.domain_randomize,
     "Go1Handstand": go1_randomize.domain_randomize,
     "Go1Footstand": go1_randomize.domain_randomize,

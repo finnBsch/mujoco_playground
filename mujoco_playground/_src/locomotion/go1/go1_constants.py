@@ -25,6 +25,12 @@ FEET_ONLY_FLAT_TERRAIN_XML = (
 FEET_ONLY_ROUGH_TERRAIN_XML = (
     ROOT_PATH / "xmls" / "scene_mjx_feetonly_rough_terrain.xml"
 )
+FEET_ONLY_ROUGH_TERRAIN_WITH_HEIGHT_SCANNER_XML = (
+    ROOT_PATH / "xmls" / "scene_mjx_feetonly_rough_terrain_with_height_scanner.xml"
+)
+FEET_ONLY_ROUGH_TERRAIN_WITH_TOUCH_GRID_XML = (
+    ROOT_PATH / "xmls" / "scene_mjx_feetonly_rough_terrain_with_touch_grid.xml"
+)
 FULL_FLAT_TERRAIN_XML = ROOT_PATH / "xmls" / "scene_mjx_flat_terrain.xml"
 FULL_COLLISIONS_FLAT_TERRAIN_XML = (
     ROOT_PATH / "xmls" / "scene_mjx_fullcollisions_flat_terrain.xml"
@@ -35,6 +41,8 @@ def task_to_xml(task_name: str) -> epath.Path:
   return {
       "flat_terrain": FEET_ONLY_FLAT_TERRAIN_XML,
       "rough_terrain": FEET_ONLY_ROUGH_TERRAIN_XML,
+      "rough_terrain_with_height_scanner": FEET_ONLY_ROUGH_TERRAIN_WITH_HEIGHT_SCANNER_XML,
+      "rough_terrain_with_touch_grid": FEET_ONLY_ROUGH_TERRAIN_WITH_TOUCH_GRID_XML,
   }[task_name]
 
 
@@ -62,3 +70,5 @@ GLOBAL_ANGVEL_SENSOR = "global_angvel"
 LOCAL_LINVEL_SENSOR = "local_linvel"
 ACCELEROMETER_SENSOR = "accelerometer"
 GYRO_SENSOR = "gyro"
+HEIGHT_SCANNER_SENSOR = "height_scanner"
+TOUCH_GRID_SENSOR = "touch_grid"

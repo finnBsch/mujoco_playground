@@ -48,6 +48,7 @@ def default_config() -> config_dict.ConfigDict:
               gyro=0.2,
               gravity=0.05,
               linvel=0.1,
+              height_map=0.05,  # Noise on height map.
           ),
       ),
       reward_config=config_dict.create(
@@ -355,18 +356,28 @@ class Joystick(go1_base.Go1Env):
         * self._config.noise_config.scales.linvel
     )
 
+    height_map = self.get_height_map_rangefinder(data).squeeze(-1)
+    info["rng"], noise_rng = jax.random.split(info["rng"])
+    noisy_height_map = (
+        height_map
+        + (2 * jax.random.uniform(noise_rng, shape=height_map.shape) - 1)
+        * self._config.noise_config.level
+        * self._config.noise_config.scales.height_map)
+
     state = jp.hstack([
         noisy_linvel,  # 3
         noisy_gyro,  # 3
         noisy_gravity,  # 3
         noisy_joint_angles - self._default_pose,  # 12
         noisy_joint_vel,  # 12
+        noisy_height_map,  # 25
         info["last_act"],  # 12
         info["command"],  # 3
     ])
 
     accelerometer = self.get_accelerometer(data)
     angvel = self.get_global_angvel(data)
+
     feet_vel = data.sensordata[self._foot_linvel_sensor_adr].ravel()
 
     privileged_state = jp.hstack([
@@ -378,6 +389,7 @@ class Joystick(go1_base.Go1Env):
         angvel,  # 3
         joint_angles - self._default_pose,  # 12
         joint_vel,  # 12
+        height_map,  # 25
         data.actuator_force,  # 12
         info["last_contact"],  # 4
         feet_vel,  # 4*3

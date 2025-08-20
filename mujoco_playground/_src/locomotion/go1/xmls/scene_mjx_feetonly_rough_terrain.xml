@@ -21,11 +21,58 @@
   <worldbody>
     <geom name="floor" type="hfield" hfield="hfield" material="groundplane" contype="1" conaffinity="0" priority="1"
       friction="1.0"/>
+    
+    <!-- Block obstacles for climbing - scattered in all directions, longer for more encounters -->
+    <!-- Forward direction -->
+    <body name="obstacle1" pos="1.5 0 0.05">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.8 0.2 0.15"/>
+    </body>
+    <body name="obstacle2" pos="3.0 0.5 0.1">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.6 0.2 0.2"/>
+    </body>
+    
+    <!-- Backward direction -->
+    <body name="obstacle3" pos="-1.5 0.3 0.08">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.7 0.2 0.18"/>
+    </body>
+    <body name="obstacle4" pos="-2.5 -0.4 0.12">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.5 0.2 0.22"/>
+    </body>
+    
+    <!-- Left side -->
+    <body name="obstacle5" pos="0.5 2.0 0.06">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 0.8 0.16"/>
+    </body>
+    <body name="obstacle6" pos="-0.3 1.5 0.1">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 0.6 0.2"/>
+    </body>
+    
+    <!-- Right side -->
+    <body name="obstacle7" pos="0.2 -2.0 0.08">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 0.7 0.18"/>
+    </body>
+    <body name="obstacle8" pos="-0.5 -1.5 0.07">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 0.5 0.17"/>
+    </body>
+    
+    <!-- Diagonal placements -->
+    <body name="obstacle9" pos="1.5 1.5 0.09">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.4 0.4 0.19"/>
+    </body>
+    <body name="obstacle10" pos="-1.5 -1.5 0.11">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.4 0.4 0.21"/>
+    </body>
+    <body name="obstacle11" pos="1.5 -1.5 0.08">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 0.3 0.18"/>
+    </body>
+    <body name="obstacle12" pos="-1.5 1.5 0.10">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 0.3 0.2"/>
+    </body>
   </worldbody>
 
   <keyframe>
     <key name="home" qpos="
-    0 0 0.35
+    0 0 0.5
     1 0 0 0
     0.1 0.9 -1.8
     -0.1 0.9 -1.8

@@ -98,6 +98,23 @@ class Go1Env(mjx_env.MjxEnv):
   def get_gyro(self, data: mjx.Data) -> jax.Array:
     return mjx_env.get_sensor_data(self.mj_model, data, consts.GYRO_SENSOR)
 
+  def get_height_map(self, data: mjx.Data) -> jax.Array:
+    """Get height map from height scanner sensor (25 values for 5x5 grid)."""
+    print("Getting height map from sensor...")
+    return mjx_env.get_sensor_data(self.mj_model, data, consts.HEIGHT_SCANNER_SENSOR)
+
+  def get_touch_grid(self, data: mjx.Data) -> jax.Array:
+    """Get touch grid data from touch_grid sensor (16 values for 4x4 grid)."""
+    return mjx_env.get_sensor_data(self.mj_model, data, consts.TOUCH_GRID_SENSOR)
+  
+  def get_height_map_rangefinder(self, data: mjx.Data) -> jax.Array:
+    """Get height map from rangefinder sensors (25 values for 5x5 grid)."""
+    height_sensors = [f"height_{i}{j}" for i in range(5) for j in range(5)]
+    height_data = []
+    for sensor_name in height_sensors:
+      height_data.append(mjx_env.get_sensor_data(self.mj_model, data, sensor_name))
+    return jp.array(height_data)
+
   def get_feet_pos(self, data: mjx.Data) -> jax.Array:
     return jp.vstack([
         mjx_env.get_sensor_data(self.mj_model, data, sensor_name)
