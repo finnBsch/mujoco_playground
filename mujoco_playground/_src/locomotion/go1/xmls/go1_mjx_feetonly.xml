@@ -100,38 +100,38 @@
       <geom class="collision" quat="1 0 1 0" pos="0 +0.04 0" size="0.058 0.125" type="cylinder"/>
       <site name="imu" pos="-0.01592 -0.06659 -0.00617" group="5"/>
       
-      <!-- Height scanner sites: 5x5 grid, 0.2m spacing, oriented to cast rays downward -->
+      <!-- Height scanner sites: 5x5 grid, 0.25m spacing, oriented to cast rays downward -->
       <!-- Sites positioned slightly below robot body, oriented with +Z pointing down -->
       <!-- Row 0 (y = -0.4) -->
-      <site name="height_site_00" class="rangefinder" pos="-0.4 -0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_01" class="rangefinder" pos="-0.2 -0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_02" class="rangefinder" pos=" 0.0 -0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_03" class="rangefinder" pos=" 0.2 -0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_04" class="rangefinder" pos=" 0.4 -0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <!-- Row 1 (y = -0.2) -->
-      <site name="height_site_10" class="rangefinder" pos="-0.4 -0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_11" class="rangefinder" pos="-0.2 -0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_12" class="rangefinder" pos=" 0.0 -0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_13" class="rangefinder" pos=" 0.2 -0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_14" class="rangefinder" pos=" 0.4 -0.2 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_00" class="rangefinder" pos="-0.5 -0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_01" class="rangefinder" pos="-0.25 -0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_02" class="rangefinder" pos=" 0.0 -0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_03" class="rangefinder" pos=" 0.25 -0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_04" class="rangefinder" pos=" 0.5 -0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <!-- Row 1 (y = -0.25) -->
+      <site name="height_site_10" class="rangefinder" pos="-0.5 -0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_11" class="rangefinder" pos="-0.25 -0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_12" class="rangefinder" pos=" 0.0 -0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_13" class="rangefinder" pos=" 0.25 -0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_14" class="rangefinder" pos=" 0.5 -0.25 0.1" axisangle="1 0 0 3.1415927"/>
       <!-- Row 2 (y = 0.0) - center row -->
-      <site name="height_site_20" class="rangefinder" pos="-0.4  0.0 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_21" class="rangefinder" pos="-0.2  0.0 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_20" class="rangefinder" pos="-0.5  0.0 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_21" class="rangefinder" pos="-0.25  0.0 0.1" axisangle="1 0 0 3.1415927"/>
       <site name="height_site_22" class="rangefinder" pos=" 0.0  0.0 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_23" class="rangefinder" pos=" 0.2  0.0 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_24" class="rangefinder" pos=" 0.4  0.0 0.1" axisangle="1 0 0 3.1415927"/>
-      <!-- Row 3 (y = 0.2) -->
-      <site name="height_site_30" class="rangefinder" pos="-0.4  0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_31" class="rangefinder" pos="-0.2  0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_32" class="rangefinder" pos=" 0.0  0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_33" class="rangefinder" pos=" 0.2  0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_34" class="rangefinder" pos=" 0.4  0.2 0.1" axisangle="1 0 0 3.1415927"/>
-      <!-- Row 4 (y = 0.4) -->
-      <site name="height_site_40" class="rangefinder" pos="-0.4  0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_41" class="rangefinder" pos="-0.2  0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_42" class="rangefinder" pos=" 0.0  0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_43" class="rangefinder" pos=" 0.2  0.4 0.1" axisangle="1 0 0 3.1415927"/>
-      <site name="height_site_44" class="rangefinder" pos=" 0.4  0.4 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_23" class="rangefinder" pos=" 0.25  0.0 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_24" class="rangefinder" pos=" 0.5  0.0 0.1" axisangle="1 0 0 3.1415927"/>
+      <!-- Row 3 (y = 0.25) -->
+      <site name="height_site_30" class="rangefinder" pos="-0.5  0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_31" class="rangefinder" pos="-0.25  0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_32" class="rangefinder" pos=" 0.0  0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_33" class="rangefinder" pos=" 0.25  0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_34" class="rangefinder" pos=" 0.5  0.25 0.1" axisangle="1 0 0 3.1415927"/>
+      <!-- Row 4 (y = 0.5) -->
+      <site name="height_site_40" class="rangefinder" pos="-0.5  0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_41" class="rangefinder" pos="-0.25  0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_42" class="rangefinder" pos=" 0.0  0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_43" class="rangefinder" pos=" 0.25  0.5 0.1" axisangle="1 0 0 3.1415927"/>
+      <site name="height_site_44" class="rangefinder" pos=" 0.5  0.5 0.1" axisangle="1 0 0 3.1415927"/>
       
       <body name="FR_hip" pos="0.1881 -0.04675 0">
         <inertial pos="-0.0049166 0.00762615 -8.865e-05" quat="0.507341 0.514169 0.495027 0.482891" mass="0.68"

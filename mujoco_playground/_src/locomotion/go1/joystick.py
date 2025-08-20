@@ -48,7 +48,7 @@ def default_config() -> config_dict.ConfigDict:
               gyro=0.2,
               gravity=0.05,
               linvel=0.1,
-              height_map=0.05,  # Noise on height map.
+              height_map=0.001,  # Noise on height map.
           ),
       ),
       reward_config=config_dict.create(
