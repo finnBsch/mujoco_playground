@@ -22,51 +22,34 @@
     <geom name="floor" size="0 0 0.01" type="plane" material="groundplane" contype="1" conaffinity="0" priority="1"
       friction="0.6" condim="3"/>
     
-    <!-- Block obstacles for climbing - scattered in all directions, longer for more encounters -->
-    <!-- Forward direction -->
-    <body name="obstacle1" pos="1.5 0 0.05">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.8 0.2 0.15"/>
-    </body>
-    <body name="obstacle2" pos="3.0 0.5 0.1">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.6 0.2 0.2"/>
+    <!-- Long walls that force climbing - no way around -->
+    <!-- Wall 1: Forward blocking path -->
+    <body name="wall1" pos="1.5 0 0.1">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 10.0 0.1"/>
     </body>
     
-    <!-- Backward direction -->
-    <body name="obstacle3" pos="-1.5 0.3 0.08">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.7 0.2 0.18"/>
-    </body>
-    <body name="obstacle4" pos="-2.5 -0.4 0.12">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.5 0.2 0.22"/>
+    <!-- Wall 2: Backward blocking path -->
+    <body name="wall2" pos="-1.5 0 0.08">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 10.0 0.08"/>
     </body>
     
-    <!-- Left side -->
-    <body name="obstacle5" pos="0.5 2.0 0.06">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 0.8 0.16"/>
-    </body>
-    <body name="obstacle6" pos="-0.3 1.5 0.1">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 0.6 0.2"/>
+    <!-- Wall 3: Left side blocking -->
+    <body name="wall3" pos="0 3.0 0.12">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="10.0 0.3 0.12"/>
     </body>
     
-    <!-- Right side -->
-    <body name="obstacle7" pos="0.2 -2.0 0.08">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 0.7 0.18"/>
-    </body>
-    <body name="obstacle8" pos="-0.5 -1.5 0.07">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 0.5 0.17"/>
+    <!-- Wall 4: Right side blocking -->
+    <body name="wall4" pos="0 -3.0 0.09">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="10.0 0.3 0.09"/>
     </body>
     
-    <!-- Diagonal placements -->
-    <body name="obstacle9" pos="1.5 1.5 0.09">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.4 0.4 0.19"/>
+    <!-- Additional crossing walls for more climbing practice -->
+    <body name="wall5" pos="3.5 0 0.1">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 8.0 0.1"/>
     </body>
-    <body name="obstacle10" pos="-1.5 -1.5 0.11">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.4 0.4 0.21"/>
-    </body>
-    <body name="obstacle11" pos="1.5 -1.5 0.08">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 0.3 0.18"/>
-    </body>
-    <body name="obstacle12" pos="-1.5 1.5 0.10">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 0.3 0.2"/>
+    
+    <body name="wall6" pos="-3.5 0 0.07">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 8.0 0.07"/>
     </body>
   </worldbody>
 

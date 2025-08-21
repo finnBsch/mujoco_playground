@@ -19,7 +19,7 @@ def main():
     print("Creating Go1 Height Scanner Visualization...")
     
     # Load environment
-    env_name = 'Go1JoystickRoughTerrainWithHeightScanner'
+    env_name = 'Go1JoystickRoughTerrain'
     print(f"Loading environment: {env_name}")
     
     # Get default config and modify as needed
@@ -54,7 +54,7 @@ def main():
         
         # Step simulation
         state = jit_step(state, action)
-        print(state.obs['privileged_state'])
+        # print(state.obs['privileged_state'])
         rollout.append(state)
         
         # Print height scanner data every 50 steps

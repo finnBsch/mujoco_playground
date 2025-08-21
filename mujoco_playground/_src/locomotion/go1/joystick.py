@@ -20,6 +20,7 @@ import jax
 import jax.numpy as jp
 from ml_collections import config_dict
 from mujoco import mjx
+from mujoco.mjx._src import ray
 from mujoco.mjx._src import math
 import numpy as np
 
@@ -54,18 +55,18 @@ def default_config() -> config_dict.ConfigDict:
       reward_config=config_dict.create(
           scales=config_dict.create(
               # Tracking.
-              tracking_lin_vel=1.0,
+              tracking_lin_vel=2.0,
               tracking_ang_vel=0.5,
               # Base reward.
-              lin_vel_z=-0.5,
-              ang_vel_xy=-0.05,
+              lin_vel_z=-0.01,
+              ang_vel_xy=-0.001,
               orientation=-5.0,
               # Other.
               dof_pos_limits=-1.0,
               pose=0.5,
               # Other.
               termination=-1.0,
-              stand_still=-1.0,
+              stand_still=-3.0,
               # Regularization.
               torques=-0.0002,
               action_rate=-0.01,
@@ -74,10 +75,10 @@ def default_config() -> config_dict.ConfigDict:
               feet_clearance=-2.0,
               feet_height=-0.2,
               feet_slip=-0.1,
-              feet_air_time=0.1,
+              feet_air_time=0.2,
           ),
           tracking_sigma=0.25,
-          max_foot_height=0.1,
+          max_foot_height=0.2,
       ),
       pert_config=config_dict.create(
           enable=False,
@@ -155,7 +156,7 @@ class Joystick(go1_base.Go1Env):
 
     # x=+U(-0.5, 0.5), y=+U(-0.5, 0.5), yaw=U(-3.14, 3.14).
     rng, key = jax.random.split(rng)
-    dxy = jax.random.uniform(key, (2,), minval=-0.5, maxval=0.5)
+    dxy = jax.random.uniform(key, (2,), minval=-0.1, maxval=0.1)
     qpos = qpos.at[0:2].set(qpos[0:2] + dxy)
     rng, key = jax.random.split(rng)
     yaw = jax.random.uniform(key, (1,), minval=-3.14, maxval=3.14)
@@ -531,14 +532,42 @@ class Joystick(go1_base.Go1Env):
     vel_xy_norm_sq = jp.sum(jp.square(vel_xy), axis=-1)
     return jp.sum(vel_xy_norm_sq * contact) * (cmd_norm > 0.01)
 
+  def _get_terrain_height_below_feet(self, model: mjx.Model, data: mjx.Data) -> jax.Array:
+      """Cast rays down from each foot to find terrain height."""
+      foot_pos = data.site_xpos[self._feet_site_id]  # Shape: (4, 3)
+      
+      # Ray from foot position straight down
+      ray_start = foot_pos
+      ray_dir = jp.array([0.0, 0.0, -1.0])  # Downward direction
+      
+      # Get body IDs from foot sites to exclude them from ray casting
+      foot_body_ids = [self.mjx_model.site_bodyid[site_id] for site_id in self._feet_site_id]
+      dist, id_ = ray.batch_ray(model, data, ray_start, ray_dir, (), True, bodyexclude=foot_body_ids)
+      # print(dist)
+      return dist
+
   def _cost_feet_clearance(self, data: mjx.Data) -> jax.Array:
-    feet_vel = data.sensordata[self._foot_linvel_sensor_adr]
-    vel_xy = feet_vel[..., :2]
-    vel_norm = jp.sqrt(jp.linalg.norm(vel_xy, axis=-1))
-    foot_pos = data.site_xpos[self._feet_site_id]
-    foot_z = foot_pos[..., -1]
-    delta = jp.abs(foot_z - self._config.reward_config.max_foot_height)
-    return jp.sum(delta * vel_norm)
+      """Penalize insufficient clearance relative to terrain below."""
+      feet_vel = data.sensordata[self._foot_linvel_sensor_adr]
+      vel_xy = feet_vel[..., :2]
+      vel_norm = jp.sqrt(jp.linalg.norm(vel_xy, axis=-1))
+      
+      foot_pos = data.site_xpos[self._feet_site_id]
+      foot_z = foot_pos[..., 2]
+      
+      # Get terrain height directly below each foot
+      clearance = self._get_terrain_height_below_feet(self._mj_model, data)
+      
+      # # Relative clearance to terrain
+      # clearance = foot_z - terrain_heights
+      
+      # Target clearance (adaptive based on velocity)
+      min_clearance = 0.05
+      desired_clearance = min_clearance + (self._config.reward_config.max_foot_height - min_clearance) * jp.tanh(vel_norm)
+      
+      # Only penalize insufficient clearance
+      clearance_error = jp.maximum(0, desired_clearance - clearance)
+      return jp.sum(clearance_error * vel_norm)
 
   def _cost_feet_height(
       self,
@@ -546,9 +575,18 @@ class Joystick(go1_base.Go1Env):
       first_contact: jax.Array,
       info: dict[str, Any],
   ) -> jax.Array:
-    cmd_norm = jp.linalg.norm(info["command"])
-    error = swing_peak / self._config.reward_config.max_foot_height - 1.0
-    return jp.sum(jp.square(error) * first_contact) * (cmd_norm > 0.01)
+      """Penalize insufficient swing height, but allow higher swings."""
+      cmd_norm = jp.linalg.norm(info["command"])
+      
+      # Minimum desired swing height
+      min_swing_height = 0.08
+      target_swing_height = self._config.reward_config.max_foot_height
+      
+      # Only penalize if swing is TOO LOW
+      # Allow and don't penalize higher swings for obstacle clearance
+      height_error = jp.maximum(0, target_swing_height - swing_peak)
+      
+      return jp.sum(height_error * first_contact) * (cmd_norm > 0.01)
 
   def _reward_feet_air_time(
       self, air_time: jax.Array, first_contact: jax.Array, commands: jax.Array

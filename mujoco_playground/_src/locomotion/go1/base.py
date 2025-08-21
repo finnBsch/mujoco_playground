@@ -108,8 +108,8 @@ class Go1Env(mjx_env.MjxEnv):
     return mjx_env.get_sensor_data(self.mj_model, data, consts.TOUCH_GRID_SENSOR)
   
   def get_height_map_rangefinder(self, data: mjx.Data) -> jax.Array:
-    """Get height map from rangefinder sensors (25 values for 5x5 grid)."""
-    height_sensors = [f"height_{i}{j}" for i in range(5) for j in range(5)]
+    """Get height map from rangefinder sensors (100 values for 10x10 grid)."""
+    height_sensors = [f"height_{i:02d}" for i in range(100)]
     height_data = []
     for sensor_name in height_sensors:
       height_data.append(mjx_env.get_sensor_data(self.mj_model, data, sensor_name))
