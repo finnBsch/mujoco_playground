@@ -71,17 +71,17 @@ def default_config() -> config_dict.ConfigDict:
               termination=-3.0,
               stand_still=-0.1,
               # Regularization.
-              torques=-0.0002,
+              torques=-0.00002,
               action_rate=-0.01,
-              energy=-0.001,
+              energy=-0.0001,
               # Feet.
-              feet_clearance=-1.0,
+              feet_clearance=-0.3,
               feet_height=-0.0,
               feet_slip=-0.1,
-              feet_air_time=0.1,
+              feet_air_time=0.02,
           ),
           tracking_sigma=0.25,
-          max_foot_height=0.2,
+          max_foot_height=0.14,
       ),
       pert_config=config_dict.create(
           enable=False,
@@ -443,7 +443,7 @@ class Joystick(go1_base.Go1Env):
         noisy_gravity,  # 3, range [ ] check if gravity or acc
         noisy_joint_angles - self._default_pose,  # 12. 
         noisy_joint_vel,  # 12. 
-        noisy_height_map,  # 100 range [0, 1.0] (10x10 grid)
+        #noisy_height_map,  # 100 range [0, 1.0] (10x10 grid)
         info["last_act"],  # 12 
         info["command"],  # 3
     ])
@@ -462,7 +462,7 @@ class Joystick(go1_base.Go1Env):
         angvel,  # 3
         joint_angles - self._default_pose,  # 12
         joint_vel,  # 12
-        height_map,  # 100 (10x10 grid)
+        #height_map,  # 100 (10x10 grid)
         data.actuator_force,  # 12
         info["last_contact"],  # 4
         feet_vel,  # 4*3
@@ -595,9 +595,38 @@ class Joystick(go1_base.Go1Env):
     # Penalize xy axes base angular velocity.
     return jp.sum(jp.square(global_angvel[:2]))
 
-  def _cost_orientation(self, torso_zaxis: jax.Array) -> jax.Array:
-    # Penalize non flat base orientation.
-    return jp.sum(jp.square(torso_zaxis[:2]))
+  # def _cost_orientation(self, torso_zaxis: jax.Array) -> jax.Array:
+  #   # Penalize non flat base orientation.
+  #   return jp.sum(jp.square(torso_zaxis[:2]))
+
+  def _cost_orientation(self, torso_zaxis: jax.Array,
+                         tolerance: float = 0.15,   ## Consider increasing this a bit
+                         exp_scale: float = 7.0) -> jax.Array:
+      """
+      Penalize orientation outside a tolerance range with exponential growth.
+
+      Args:
+        torso_zaxis: Z-axis vector of torso orientation
+        tolerance: Half-width of the dead zone (no penalty range) in radians
+        exp_scale: Scale factor for exponential penalty growth
+
+      Returns:
+        Cost value (0 within tolerance, exponentially growing outside)
+      """
+      # Get pitch and roll components (first two elements)
+      pitch_roll = torso_zaxis[:2]
+
+      # Calculate absolute deviations
+      abs_deviations = jp.abs(pitch_roll)
+
+      # Calculate excess beyond tolerance (clipped to 0 if within tolerance)
+      excess = jp.maximum(0.0, abs_deviations - tolerance)
+
+      # Apply exponential penalty to excess
+      penalties = jp.expm1(exp_scale * excess)  # expm1(x) = exp(x) - 1
+
+      # Sum penalties for both pitch and roll
+      return jp.sum(penalties)
 
   # Energy related rewards.
 
@@ -863,7 +892,7 @@ class Joystick(go1_base.Go1Env):
   ) -> jax.Array:
     # Reward air time.
     cmd_norm = jp.linalg.norm(commands)
-    rew_air_time = jp.sum(jp.exp(-jp.square(air_time - 0.1)) * first_contact)
+    rew_air_time = jp.sum(jp.exp(-jp.square(air_time - 0.4)) * first_contact)
     rew_air_time *= cmd_norm > 0.01  # No reward for zero commands.
     return rew_air_time
 
