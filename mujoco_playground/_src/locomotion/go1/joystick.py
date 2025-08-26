@@ -53,35 +53,35 @@ def default_config() -> config_dict.ConfigDict:
       ),
       reward_config=config_dict.create(
           scales=config_dict.create(
-              torso_height=-0.0,  # Adjust magnitude
+              torso_height=-6.0,  # Adjust magnitude
               # Tracking.
-              tracking_lin_vel=2.0,
-              tracking_ang_vel=0.5,
+              tracking_lin_vel=2.0,    ## 1.0
+              tracking_ang_vel=0.5,    ## 0.5
               linear_orthogonal_velocity=0.0,
               world_direction=0.0,
 
               # Base reward.
-              lin_vel_z=-0.5, # TODO
-              ang_vel_xy=-0.02,
-              orientation=-1.0,
+              lin_vel_z=-0.5, # TODO   ## -0.5
+              ang_vel_xy=-0.02,        ## -0.05
+              orientation=-1.0,        ## -5.0
               # Other.
-              dof_pos_limits=-0.01,
-              pose=0.3,
+              dof_pos_limits=-0.01,    ## -1.0
+              pose=1.0,  # 0.5         ## 0.5
               # Other.
-              termination=-3.0,
-              stand_still=-0.1,
+              termination=-3.0,        ## -1.0
+              stand_still=-0.1,        ## -1.0
               # Regularization.
-              torques=-0.00002,
-              action_rate=-0.01,
-              energy=-0.0001,
+              torques=-0.0004,        ## -0.0002
+              action_rate=-0.01,       ## -0.01
+              energy=-0.00003,         ## -0.001
               # Feet.
-              feet_clearance=-0.3,
-              feet_height=-0.0,
-              feet_slip=-0.1,
-              feet_air_time=0.02,
+              feet_clearance=-0.1,     ## -2.0
+              feet_height=-0.0,        ## -0.2
+              feet_slip=-0.1,          ## -0.1
+              feet_air_time=0.22,      ## 0.1
           ),
           tracking_sigma=0.25,
-          max_foot_height=0.14,
+          max_foot_height=0.11,        ## 0.1
       ),
       pert_config=config_dict.create(
           enable=False,
@@ -524,7 +524,7 @@ class Joystick(go1_base.Go1Env):
   def _cost_torso_height(self, data: mjx.Data) -> jax.Array:
     """Penalize deviation from target torso height above terrain."""
     height_above_terrain = self._get_torso_terrain_height(data)
-    target_height = 0.27  # Target height for Go1
+    target_height = 0.37  # Target height for Go1
     
     # Squared error from target height
     return jp.square(height_above_terrain - target_height)
@@ -892,7 +892,7 @@ class Joystick(go1_base.Go1Env):
   ) -> jax.Array:
     # Reward air time.
     cmd_norm = jp.linalg.norm(commands)
-    rew_air_time = jp.sum(jp.exp(-jp.square(air_time - 0.4)) * first_contact)
+    rew_air_time = jp.sum(jp.exp(-jp.square(air_time - 0.8)) * first_contact)
     rew_air_time *= cmd_norm > 0.01  # No reward for zero commands.
     return rew_air_time
 
