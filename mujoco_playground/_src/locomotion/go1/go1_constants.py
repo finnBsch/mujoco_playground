@@ -60,6 +60,7 @@ FEET_GEOMS = [
     "RL",
 ]
 
+
 FEET_POS_SENSOR = [f"{site}_pos" for site in FEET_SITES]
 
 ROOT_BODY = "trunk"

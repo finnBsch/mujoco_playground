@@ -102,7 +102,7 @@ def main():
         
         # Create new qpos with robot lifted
         new_qpos = env_state.data.qpos.at[2].add(test_height)  # Lift z position
-        
+        # new_qpos = new_qpos.at[0].add(1.0) # Above obstacle
         # Create new data with modified position
         from mujoco import mjx
         test_data = env_state.data.replace(qpos=new_qpos)
@@ -110,7 +110,7 @@ def main():
         
         # Get new foot positions
         new_foot_pos = test_data.site_xpos[feet_site_id]
-        print(f"New foot positions (z-values): {new_foot_pos[:, 2]}")
+        print(f"New foot positions (z-values): {new_foot_pos}")
         
         # Calculate clearances at new height
         clearances = env._get_terrain_height_below_feet(env.mj_model, test_data)
@@ -129,7 +129,7 @@ def main():
         
         min_clearance = 0.05
         desired_clearance = min_clearance + (env._config.reward_config.max_foot_height - min_clearance) * jp.tanh(vel_norm)
-        clearance_error = jp.maximum(0, desired_clearance - clearances)
+        clearance_error = jp.abs(desired_clearance - clearances)
         clearance_penalty = jp.sum(clearance_error * vel_norm)
         
         print(f"Velocity norms: {vel_norm}")
@@ -138,6 +138,23 @@ def main():
         print(f"Total clearance penalty: {clearance_penalty}")
     
     print("\n" + "="*60)
+
+    # Lift BR foot and recompute clearance reward
+    br_foot_id = env.mj_model.site("RR").id
+    print("Foot id: ", br_foot_id)
+    lifted_br_foot_pos = env_state.data.site_xpos[br_foot_id] + jp.array([0, 0, 0.3])
+    print(f"Lifted BR foot position: {lifted_br_foot_pos}")
+
+    # Update foot positions in the environment state
+    # env_state.data.site_xpos.at[br_foot_id].set(lifted_br_foot_pos)
+    updated_site_xpos = env_state.data.site_xpos.at[br_foot_id].set(lifted_br_foot_pos)
+    env_state = env_state.replace(
+        data=env_state.data.replace(site_xpos=updated_site_xpos)
+    )
+    print(env_state.data.site_xpos[br_foot_id])
+    # Recompute clearances with lifted foot
+    new_clearances = env._get_terrain_height_below_feet(env.mj_model, env_state.data)
+    print(f"New clearances after lifting BR foot: {new_clearances}")
 
     # step_jit = jax.jit(env.step)
     # # print(f"✓ Environment reset.")

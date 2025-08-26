@@ -24,34 +24,37 @@
     
     <!-- Long walls that force climbing - no way around -->
     <!-- Wall 1: Forward blocking path -->
-    <body name="wall1" pos="1.5 0 0.1">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 10.0 0.1"/>
+    <body name="wall1" pos="1.5 0 0.05">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 10.0 0.05"/>
     </body>
     
     <!-- Wall 2: Backward blocking path -->
-    <body name="wall2" pos="-1.5 0 0.08">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 10.0 0.08"/>
+    <body name="wall2" pos="-1.5 0 0.04">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.3 10.0 0.05"/>
     </body>
     
     <!-- Wall 3: Left side blocking -->
-    <body name="wall3" pos="0 3.0 0.12">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="10.0 0.3 0.12"/>
+    <body name="wall3" pos="0 3.0 0.06">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="10.0 0.3 0.06"/>
     </body>
     
     <!-- Wall 4: Right side blocking -->
-    <body name="wall4" pos="0 -3.0 0.09">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="10.0 0.3 0.09"/>
+    <body name="wall4" pos="0 -3.0 0.045">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="10.0 0.3 0.045"/>
     </body>
     
     <!-- Additional crossing walls for more climbing practice -->
-    <body name="wall5" pos="3.5 0 0.1">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 8.0 0.1"/>
+    <body name="wall5" pos="3.5 0 0.05">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 8.0 0.05"/>
     </body>
     
-    <body name="wall6" pos="-3.5 0 0.07">
-      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 8.0 0.07"/>
+    <body name="wall6" pos="-3.5 0 0.035">
+      <geom contype="1" conaffinity="0" friction="1 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 8.0 0.035"/>
     </body>
   </worldbody>
+
+  <include file="sensor_feet.xml"/>
+  <!-- <include file="sensor_fullcollision.xml"/> -->
 
   <keyframe>
     <key name="home" qpos="
