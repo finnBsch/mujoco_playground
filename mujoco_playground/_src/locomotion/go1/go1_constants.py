@@ -53,11 +53,20 @@ FEET_SITES = [
     "RL",
 ]
 
+KNEE_SITES = [f"{site}_knee" for site in FEET_SITES]
+
 FEET_GEOMS = [
     "FR",
     "FL",
     "RR",
     "RL",
+]
+
+KNEE_GEOMS = [
+    "fr_calf1",
+    "fl_calf1", 
+    "rr_calf1",
+    "rl_calf1",
 ]
 
 

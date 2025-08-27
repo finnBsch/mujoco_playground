@@ -67,10 +67,15 @@ class Go1Env(mjx_env.MjxEnv):
     self._xml_path = xml_path
     self._imu_site_id = self._mj_model.site("imu").id
 
-    self._feet_floor_found_sensor = [
-        self._mj_model.sensor(f"{geom}_floor_found").id
-        for geom in consts.FEET_GEOMS
-    ]
+    # self._feet_floor_found_sensor = [
+    #     self._mj_model.sensor(f"{geom}_floor_found").id
+    #     for geom in consts.FEET_GEOMS
+    # ]
+
+    # self._knee_floor_found_sensor = [
+    #     self._mj_model.sensor(f"{knee}_knee_floor_found").id
+    #     for knee in ["FR", "FL", "RL", "RR"]
+    # ]
 
     # self._other_found_sensor = self._mj_model.sensor("other_floor_found").id
 

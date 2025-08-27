@@ -24,6 +24,7 @@ from mujoco.mjx._src import ray
 from mujoco.mjx._src import math
 import numpy as np
 
+from mujoco_playground._src import collision
 from mujoco_playground._src import mjx_env
 from mujoco_playground._src.locomotion.go1 import base as go1_base
 from mujoco_playground._src.locomotion.go1 import go1_constants as consts
@@ -53,34 +54,35 @@ def default_config() -> config_dict.ConfigDict:
       ),
       reward_config=config_dict.create(
           scales=config_dict.create(
-              torso_height=-0.0,  # Adjust magnitude
+              torso_height=0.0,  # Adjust magnitude
               # Tracking.
               tracking_lin_vel=2.0,
-              tracking_ang_vel=0.5,
-              linear_orthogonal_velocity=0.0,
+              tracking_ang_vel=1.0,
+              linear_orthogonal_velocity=1.0,
               world_direction=0.0,
 
               # Base reward.
-              lin_vel_z=-0.5, # TODO
-              ang_vel_xy=-0.02,
-              orientation=-1.0,
+              lin_vel_z=-0.00, # TODO
+              ang_vel_xy=-0.000,
+              orientation=-0.0,
               # Other.
-              dof_pos_limits=-0.01,
-              pose=0.3,
+              dof_pos_limits=-0.08,
+              pose=0.000,
               # Other.
-              termination=-3.0,
-              stand_still=-0.1,
+              termination=-0.0,
+              stand_still=-0.0,
               # Regularization.
-              torques=-0.0002,
-              action_rate=-0.01,
-              energy=-0.001,
+              torques=-0.000000,
+              action_rate=-0.00,
+              energy=-0, 
               # Feet.
-              feet_clearance=-1.0,
-              feet_height=-0.0,
-              feet_slip=-0.1,
-              feet_air_time=0.1,
+              feet_clearance=-0.0,
+              feet_height=0.0,
+              feet_slip=-0.0,
+              feet_air_time=0.0,
+              knee_contact=-0.0,
           ),
-          tracking_sigma=0.25,
+          tracking_sigma=0.1,
           max_foot_height=0.2,
       ),
       pert_config=config_dict.create(
@@ -91,7 +93,7 @@ def default_config() -> config_dict.ConfigDict:
       ),
       command_config=config_dict.create(
           # Uniform distribution for command amplitude.
-          a=[1.5, 0.8, 1.2],
+          a=[4.0, 1.0, 1.2],
           # Probability of not zeroing out new command.
           b=[0.9, 0.25, 0.5],
       ),
@@ -99,7 +101,28 @@ def default_config() -> config_dict.ConfigDict:
       nconmax=4 * 8192,
       njmax=40,
   )
-
+def parse_binary_data(binary_data):
+    """
+    Parse binary data containing null-terminated strings
+    
+    Args:
+        binary_data: bytes object or string representation of bytes
+    
+    Returns:
+        list: List of extracted strings
+    """
+    
+    # If input is a string representation of bytes, convert it
+    if isinstance(binary_data, str) and binary_data.startswith("b'"):
+        # Remove b' prefix and ' suffix, then decode escape sequences
+        binary_str = binary_data[2:-1]
+        binary_data = bytes(binary_str, 'utf-8').decode('unicode_escape').encode('latin-1')
+    
+    # Split by null bytes and filter out empty strings
+    strings = binary_data.split(b'\x00')
+    parsed_strings = [s.decode('utf-8', errors='ignore') for s in strings if s]
+    
+    return parsed_strings
 
 class Joystick(go1_base.Go1Env):
   """Track a joystick command."""
@@ -135,7 +158,19 @@ class Joystick(go1_base.Go1Env):
     self._feet_site_id = np.array(
         [self._mj_model.site(name).id for name in consts.FEET_SITES]
     )
+    
+    self._knee_geom_id = np.array(
+        [self._mj_model.geom(name).id for name in consts.KNEE_GEOMS]
+    )
     self._floor_geom_id = self._mj_model.geom("floor").id
+
+    wall_name_substr = "wall"
+
+    self._wall_geom_ids = np.array([
+        self._mj_model.geom(name).id
+        for name in parse_binary_data(self._mj_model.names)
+        if wall_name_substr in name
+    ])
     self._feet_geom_id = np.array(
         [self._mj_model.geom(name).id for name in consts.FEET_GEOMS]
     )
@@ -188,9 +223,9 @@ class Joystick(go1_base.Go1Env):
     qpos = self._init_q
     qvel = jp.zeros(self.mjx_model.nv)
 
-    # x=+U(-0.5, 0.5), y=+U(-0.5, 0.5), yaw=U(-3.14, 3.14).
+    # x=+U(-1.5, 1.5), y=+U(-1.5, 1.5), yaw=U(-3.14, 3.14).
     rng, key = jax.random.split(rng)
-    dxy = jax.random.uniform(key, (2,), minval=-0.1, maxval=0.1)
+    dxy = jax.random.uniform(key, (2,), minval=-1.5, maxval=1.5)
     qpos = qpos.at[0:2].set(qpos[0:2] + dxy)
     rng, key = jax.random.split(rng)
     yaw = jax.random.uniform(key, (1,), minval=-3.14, maxval=3.14)
@@ -204,6 +239,54 @@ class Joystick(go1_base.Go1Env):
         jax.random.uniform(key, (6,), minval=-0.5, maxval=0.5)
     )
 
+    # Create initial data with current position
+    data = mjx_env.make_data(
+        self.mj_model,
+        qpos=qpos,
+        qvel=qvel,
+        ctrl=qpos[7:],
+        impl=self.mjx_model.impl.value,
+        nconmax=self._config.nconmax,
+        njmax=self._config.njmax,
+    )
+    data = mjx.forward(self.mjx_model, data)
+    
+    # Get height of each foot and adjust robot Z position so no foot is in the floor
+    foot_positions = data.site_xpos[self._feet_site_id]  # (4, 3)
+    
+    # Cast rays downward from each foot to find terrain distance
+    ray_starts = foot_positions + jp.array([0.0, 0.0, 0.5])  # Start 0.5m above feet
+    ray_dir = jp.array([0.0, 0.0, -1.0])
+    
+    # Get terrain distance below each foot
+    distances, _ = ray.batch_ray(
+        self._mj_model, data, ray_starts, ray_dir, (),
+        True, bodyexclude=self._robot_body_ids
+    )
+    
+    # Safety check: replace any non-finite distances with reasonable default
+    distances_safe = jp.where(jp.isfinite(distances), distances, 1.0)
+    
+    # Calculate clearance for each foot (distance from foot to terrain)
+    # Positive = foot above terrain, Negative = foot below terrain
+    foot_clearances = distances_safe - 0.5
+    
+    # Find the foot with minimum clearance (closest to or below terrain)
+    min_clearance = jp.min(foot_clearances)
+    
+    # Adjust robot Z position so that foot just touches the terrain (clearance = 0)
+    z_adjustment = -min_clearance
+    
+    # Safety check: ensure z_adjustment is finite, otherwise use 0
+    z_adjustment_safe = jp.where(jp.isfinite(z_adjustment), z_adjustment, 0.0)
+    
+    # Apply Z adjustment to robot position
+    new_z = qpos[2] + z_adjustment_safe + 0.03
+    new_z_safe = jp.where(jp.isfinite(new_z), new_z, qpos[2])
+    
+    qpos = qpos.at[2].set(new_z_safe)
+    
+    # Update data with adjusted position
     data = mjx_env.make_data(
         self.mj_model,
         qpos=qpos,
@@ -295,10 +378,42 @@ class Joystick(go1_base.Go1Env):
         self.mjx_model, state.data, motor_targets, self.n_substeps
     )
 
-    contact = jp.array([
-        data.sensordata[self._mj_model.sensor_adr[sensorid]] > 0
-        for sensorid in self._feet_floor_found_sensor
-    ])
+    # Vectorized feet-floor collision detection
+    contact = jax.vmap(lambda geom_id: collision.geoms_colliding(data, geom_id, self._floor_geom_id))(
+        self._feet_geom_id
+    )
+
+    # Vectorized feet-wall collision detection
+    feet_wall_collisions = jax.vmap(
+        lambda foot_geom_id: jax.vmap(
+            lambda wall_geom_id: collision.geoms_colliding(data, foot_geom_id, wall_geom_id)
+        )(self._wall_geom_ids)
+    )(self._feet_geom_id)
+    # feet_wall_collisions shape: (num_feet, num_walls)
+    # Check if any foot collides with any wall
+    contact = contact | feet_wall_collisions.any(axis=1)
+
+
+    # Vectorized knee-floor collision detection
+    contact_knees = jax.vmap(lambda geom_id: collision.geoms_colliding(data, geom_id, self._floor_geom_id))(
+        self._knee_geom_id
+    )
+
+    # Vectorized knee-wall collision detection
+    knee_wall_collisions = jax.vmap(
+        lambda knee_geom_id: jax.vmap(
+            lambda wall_geom_id: collision.geoms_colliding(data, knee_geom_id, wall_geom_id)
+        )(self._wall_geom_ids)
+    )(self._knee_geom_id)
+    # knee_wall_collisions shape: (num_knees, num_walls)
+    # Check if any knee collides with any wall
+    contact_knees = contact_knees | knee_wall_collisions.any(axis=1)
+    # contact = jp.array([
+    #     collision.geoms_colliding(data, geom_id, self._floor_geom_id)
+    #     for geom_id in self._feet_geom_id
+    #     data.sensordata[self._mj_model.sensor_adr[sensorid]] > 0
+    #     for sensorid in self._feet_floor_found_sensor
+    # ])
     contact_filt = contact | state.info["last_contact"]
     first_contact = (state.info["feet_air_time"] > 0.0) * contact_filt
     state.info["feet_air_time"] += self.dt
@@ -317,7 +432,7 @@ class Joystick(go1_base.Go1Env):
     done = self._get_termination(data)
 
     rewards = self._get_reward(
-        data, action, state.info, state.metrics, done, first_contact, contact
+        data, action, state.info, state.metrics, done, first_contact, contact, contact_knees
     )
     rewards = {
         k: v * self._config.reward_config.scales[k] for k, v in rewards.items()
@@ -428,9 +543,13 @@ class Joystick(go1_base.Go1Env):
         * self._config.noise_config.scales.linvel
     )
 
-    height_map = self._get_vertical_height_map(data)
+    height_map = self._get_foot_centric_height_map(data)
     info["rng"], noise_rng = jax.random.split(info["rng"])
     noisy_height_map = height_map
+    
+    # Debug: Print height_map statistics
+    # Uncomment these lines to debug height_map values
+
     # (
     #     height_map
     #     + (2 * jax.random.uniform(noise_rng, shape=height_map.shape) - 1)
@@ -454,7 +573,7 @@ class Joystick(go1_base.Go1Env):
     feet_vel = data.sensordata[self._foot_linvel_sensor_adr].ravel()
 
     privileged_state = jp.hstack([
-        state,
+        #state,
         gyro,  # 3
         accelerometer,  # 3
         gravity,  # 3
@@ -469,6 +588,8 @@ class Joystick(go1_base.Go1Env):
         info["feet_air_time"],  # 4
         data.xfrc_applied[self._torso_body_id, :3],  # 3
         info["steps_since_last_pert"] >= info["steps_until_next_pert"],  # 1
+        info["last_act"],  # 12 
+        info["command"],  # 3
     ])
 
     return {
@@ -485,6 +606,7 @@ class Joystick(go1_base.Go1Env):
       done: jax.Array,
       first_contact: jax.Array,
       contact: jax.Array,
+      contact_knees: jax.Array,
   ) -> dict[str, jax.Array]:
     del metrics  # Unused.
     return {
@@ -517,6 +639,7 @@ class Joystick(go1_base.Go1Env):
         "feet_air_time": self._reward_feet_air_time(
             info["feet_air_time"], first_contact, info["command"]
         ),
+        "knee_contact": self._cost_knee_contact(contact_knees),
         "torso_height": self._cost_torso_height(data),
         "dof_pos_limits": self._cost_joint_pos_limits(data.qpos[7:]),
     }
@@ -524,10 +647,15 @@ class Joystick(go1_base.Go1Env):
   def _cost_torso_height(self, data: mjx.Data) -> jax.Array:
     """Penalize deviation from target torso height above terrain."""
     height_above_terrain = self._get_torso_terrain_height(data)
-    target_height = 0.27  # Target height for Go1
+    target_height = 0.32  # Target height for Go1
     
     # Squared error from target height
-    return jp.square(height_above_terrain - target_height)
+    return jp.exp(-jp.square(height_above_terrain - target_height)/0.02)
+
+  def _cost_knee_contact(self, contact_knees: jax.Array) -> jax.Array:
+    """Penalize knee contacts with the ground."""
+    return jp.sum(contact_knees.astype(jp.float32))
+
   # Tracking rewards.
 
   def _reward_tracking_lin_vel(
@@ -537,7 +665,7 @@ class Joystick(go1_base.Go1Env):
   ) -> jax.Array:
     # Tracking of linear velocity commands (xy axes).
     lin_vel_error = jp.sum(jp.square(commands[:2] - local_vel[:2]))
-    return jp.exp(-lin_vel_error)
+    return jp.exp(-lin_vel_error / self._config.reward_config.tracking_sigma)
 
   def _reward_tracking_ang_vel(
       self,
@@ -566,8 +694,8 @@ class Joystick(go1_base.Go1Env):
     
     # Only apply reward if there's a meaningful command
     def calculate_reward():
-        # Get desired velocity direction (normalized)
-        v_des = commands[:2] / cmd_magnitude
+        # Get desired velocity direction 
+        v_des = commands[:2] / (cmd_magnitude + 1e-6)
         
         # Calculate orthogonal component: v_o = v - (v_des · v)v_des
         dot_product = jp.dot(v_des, v)
@@ -576,7 +704,7 @@ class Joystick(go1_base.Go1Env):
         
         # Calculate reward: exp(- |v_o|²)
         v_o_squared_magnitude = jp.sum(jp.square(v_o))
-        return jp.exp(- v_o_squared_magnitude)
+        return jp.exp(- 3.0 * v_o_squared_magnitude)
     
     # Return reward only if command is meaningful, otherwise no reward (0.0)
     return jp.where(
@@ -603,13 +731,13 @@ class Joystick(go1_base.Go1Env):
 
   def _cost_torques(self, torques: jax.Array) -> jax.Array:
     # Penalize torques.
-    return jp.sqrt(jp.sum(jp.square(torques))) + jp.sum(jp.abs(torques))
+    return jp.sqrt(jp.sum(jp.square(torques))) # + jp.sum(jp.abs(torques))
 
   def _cost_energy(
       self, qvel: jax.Array, qfrc_actuator: jax.Array
   ) -> jax.Array:
     # Penalize energy consumption.
-    return jp.sum(jp.abs(qvel) * jp.abs(qfrc_actuator))
+    return jp.sum(jp.square(qvel))
 
   def _cost_action_rate(
       self, act: jax.Array, last_act: jax.Array, last_last_act: jax.Array
@@ -729,10 +857,9 @@ class Joystick(go1_base.Go1Env):
         # Expand dimensions for broadcasting
         foot_pos_expanded = foot_pos[:, None, :]  # (4, 1, 3)
         offsets_3d = jp.pad(sample_offsets[None, :, :], ((0,0), (0,0), (0,1)))  # (1, 5, 3)
-        # print(foot_pos)
+
         # All sample positions: (4 feet * 5 samples = 20 total)
         sample_positions = (foot_pos_expanded + offsets_3d).reshape(-1, 3)  # (20, 3)
-        # print(sample_positions)
 
         # Start rays 0.5 units above the sample positions
         ray_start_offset = jp.array([0.0, 0.0, 0.5])
@@ -785,15 +912,15 @@ class Joystick(go1_base.Go1Env):
             [sin_yaw,  cos_yaw]
         ])
         
-        # Create 10x10 grid of sampling positions relative to robot center
-        # Grid covers 1m x 1m area (±0.5m in each direction) with ~0.111m spacing
+        # Create 5x5 grid of sampling positions relative to robot center
+        # Grid covers 0.4m x 0.4m area (±0.2m in each direction)
         grid_positions = []
-        for i in range(10):
-            for j in range(10):
+        for i in range(5):
+            for j in range(5):
                 # Convert grid indices to robot-relative offsets
-                x_robot = -0.5 + i * (1.0 / 9)  # -0.5 to +0.5 (forward/back in robot frame)
-                y_robot = -0.5 + j * (1.0 / 9)  # -0.5 to +0.5 (left/right in robot frame)
-                
+                x_robot = -0.2 + i * (0.4 / 4)  # -0.2 to +0.2 (forward/back in robot frame)
+                y_robot = -0.2 + j * (0.4 / 4)  # -0.2 to +0.2 (left/right in robot frame)
+
                 # Rotate the offset by robot's yaw to get world coordinates
                 robot_offset = jp.array([x_robot, y_robot])
                 world_offset = rotation_matrix @ robot_offset
@@ -839,13 +966,12 @@ class Joystick(go1_base.Go1Env):
         # Get terrain clearance
         clearance = self._get_terrain_height_below_feet(self._mj_model, data)
         
-        # Minimum safe clearance
-        min_safe_clearance = self._config.reward_config.max_foot_height
         
-        # Only penalize insufficient clearance, and only during swing phase
-        insufficient_clearance = jp.maximum(0, min_safe_clearance - clearance)
+        
+        insufficient_clearance = clearance > self._config.reward_config.max_foot_height
 
-        return jp.sum(insufficient_clearance * vel_norm * (~contact))
+        placed_too_low = jp.minimum(clearance, 0)
+        return jp.sum(insufficient_clearance * (~contact)) * 0.0 - jp.sum(placed_too_low * contact)
 
   def _cost_feet_height(
       self,
@@ -855,15 +981,15 @@ class Joystick(go1_base.Go1Env):
   ) -> jax.Array:
       """Penalize swing height error."""
       cmd_norm = jp.linalg.norm(info["command"])
-      error = swing_peak / self._config.reward_config.max_foot_height - 1.0
-      return jp.sum(jp.square(error) * first_contact) * (cmd_norm > 0.01)
+      error = swing_peak - self._config.reward_config.max_foot_height
+      return jp.sum(jp.exp(-jp.square(error) * first_contact)) * (cmd_norm > 0.01)
 
   def _reward_feet_air_time(
       self, air_time: jax.Array, first_contact: jax.Array, commands: jax.Array
   ) -> jax.Array:
     # Reward air time.
     cmd_norm = jp.linalg.norm(commands)
-    rew_air_time = jp.sum(jp.exp(-jp.square(air_time - 0.1)) * first_contact)
+    rew_air_time = jp.sum(jp.exp(-jp.square(air_time - 0.3)/0.01) * first_contact)
     rew_air_time *= cmd_norm > 0.01  # No reward for zero commands.
     return rew_air_time
 
@@ -945,3 +1071,104 @@ class Joystick(go1_base.Go1Env):
     # Apply mask so only one velocity type gets updated, others stay at current value
     x_kp1 = x_k - w_k * velocity_mask * (x_k - y_k * z_k)
     return x_kp1
+  
+  def _get_foot_centric_height_map(self, data: mjx.Data) -> jax.Array:
+    """Get height map using foot-centric sampling similar to ETH approach.
+    
+    Samples terrain height around each foot position using circular patterns
+    at multiple radii. Uses ~25 samples per foot for 100 total samples.
+    
+    Returns:
+        jax.Array: Shape (100,) - 25 samples per foot, 4 feet total
+    """
+    # Get current foot positions from sites
+    foot_positions = data.site_xpos[self._feet_site_id]  # Shape: (4, 3)
+    
+    # Get robot yaw angle from trunk quaternion
+    trunk_quat = data.qpos[3:7]  # (4,) - root body quaternion [w, x, y, z]
+    w, x, y, z = trunk_quat[0], trunk_quat[1], trunk_quat[2], trunk_quat[3]
+    yaw = jp.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+    
+    # Create rotation matrix for yaw (around Z-axis)
+    cos_yaw = jp.cos(yaw)
+    sin_yaw = jp.sin(yaw)
+    rotation_matrix = jp.array([
+        [cos_yaw, -sin_yaw],
+        [sin_yaw,  cos_yaw]
+    ])
+    
+    # Define sampling pattern in robot body frame: center + 3 concentric rings
+    # Total: 1 + 6 + 8 + 10 = 25 points per foot
+    sample_patterns = []
+    
+    # Center point
+    sample_patterns.append([0.0, 0.0])
+    
+    # Inner ring: 6 points at 0.08m radius
+    inner_radius = 0.08
+    for i in range(6):
+        angle = 2 * jp.pi * i / 6
+        sample_patterns.append([
+            inner_radius * jp.cos(angle),
+            inner_radius * jp.sin(angle)
+        ])
+    
+    # Middle ring: 8 points at 0.16m radius  
+    middle_radius = 0.16
+    for i in range(8):
+        angle = 2 * jp.pi * i / 8
+        sample_patterns.append([
+            middle_radius * jp.cos(angle),
+            middle_radius * jp.sin(angle)
+        ])
+    
+    # Outer ring: 10 points at 0.24m radius
+    outer_radius = 0.24
+    for i in range(10):
+        angle = 2 * jp.pi * i / 10
+        sample_patterns.append([
+            outer_radius * jp.cos(angle),
+            outer_radius * jp.sin(angle)
+        ])
+    
+    # Convert to array and rotate to world coordinates: (25, 2)
+    sample_offsets_body = jp.array(sample_patterns)
+    sample_offsets_world = (rotation_matrix @ sample_offsets_body.T).T  # Rotate each offset
+    
+    # Create all sample positions for all feet
+    # Broadcast foot positions with rotated offsets
+    foot_pos_expanded = foot_positions[:, None, :2]      # (4, 1, 2) - only X,Y
+    offsets_expanded = sample_offsets_world[None, :, :]  # (1, 25, 2)
+    
+    # All sample positions: (4 feet * 25 samples = 100 total)
+    sample_positions_2d = foot_pos_expanded + offsets_expanded  # (4, 25, 2)
+    sample_positions_2d = sample_positions_2d.reshape(-1, 2)    # (100, 2)
+    
+    # Add Z coordinate (start rays 0.5m above sample positions)
+    ray_start_height = 0.5
+    sample_positions_3d = jp.concatenate([
+        sample_positions_2d,
+        jp.full((100, 1), ray_start_height)
+    ], axis=1)  # (100, 3)
+    
+    # Ray direction (straight down)
+    ray_dir = jp.array([0.0, 0.0, -1.0])
+    
+    # Cast all rays at once
+    distances, _ = ray.batch_ray(
+        self._mj_model, data, sample_positions_3d, ray_dir, (),
+        True, bodyexclude=self._robot_body_ids
+    )  # Shape: (100,)
+    
+    # Convert distances to heights relative to foot positions
+    # For each sample, we need to subtract the offset and the ray start height
+    foot_heights = foot_positions[:, 2]  # (4,) - Z coordinates of feet
+    foot_heights_expanded = jp.repeat(foot_heights, 25)  # (100,) - repeat for each foot's samples
+    
+    # Relative heights: positive = terrain below foot, negative = terrain above foot
+    relative_heights = foot_heights_expanded - (distances - ray_start_height)
+    # print(f"Height map stats: min={jp.min(height_map):.3f}, max={jp.max(height_map):.3f}, mean={jp.mean(height_map):.3f}, std={jp.std(height_map):.3f}")
+    # print(f"Height map range: {jp.max(height_map) - jp.min(height_map):.3f}")
+    # Clip them to -0.4 to +0.4 for stability
+    relative_heights = jp.clip(relative_heights, -0.4, 0.4)
+    return relative_heights  # Shape: (100,)
