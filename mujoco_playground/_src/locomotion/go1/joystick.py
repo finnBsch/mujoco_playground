@@ -71,9 +71,9 @@ def default_config() -> config_dict.ConfigDict:
               termination=-3.0,        ## -1.0
               stand_still=-0.1,        ## -1.0
               # Regularization.
-              torques=-0.0004,        ## -0.0002
+              torques=-0.001,        ## -0.0002
               action_rate=-0.01,       ## -0.01
-              energy=-0.00003,         ## -0.001
+              energy=-0.0002,         ## -0.001
               # Feet.
               feet_clearance=-0.1,     ## -2.0
               feet_height=-0.0,        ## -0.2
@@ -459,9 +459,9 @@ class Joystick(go1_base.Go1Env):
     feet_vel = data.sensordata[self._foot_linvel_sensor_adr].ravel()
 
     privileged_state = jp.hstack([
-        state,
-        #info["last_act"],  # 12
-        #info["command"],  # 3
+        #state,
+        info["last_act"],  # 12
+        info["command"],  # 3
         gyro,  # 3
         accelerometer,  # 3
         gravity,  # 3
@@ -531,7 +531,7 @@ class Joystick(go1_base.Go1Env):
   def _cost_torso_height(self, data: mjx.Data) -> jax.Array:
     """Penalize deviation from target torso height above terrain."""
     height_above_terrain = self._get_torso_terrain_height(data)
-    target_height = 0.37  # Target height for Go1
+    target_height = 0.36  # Target height for Go1
     
     # Squared error from target height
     return jp.square(height_above_terrain - target_height)
