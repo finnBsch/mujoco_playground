@@ -428,7 +428,12 @@ class Joystick(go1_base.Go1Env):
         * self._config.noise_config.scales.linvel
     )
 
+    ## Old height map
     height_map = self._get_vertical_height_map(data)
+
+    ## Takahiro style height map
+    #height_map = self._get_foot_centric_height_map(data)
+
     info["rng"], noise_rng = jax.random.split(info["rng"])
     noisy_height_map = height_map
     # (
@@ -455,6 +460,8 @@ class Joystick(go1_base.Go1Env):
 
     privileged_state = jp.hstack([
         state,
+        #info["last_act"],  # 12
+        #info["command"],  # 3
         gyro,  # 3
         accelerometer,  # 3
         gravity,  # 3
@@ -738,13 +745,13 @@ class Joystick(go1_base.Go1Env):
         [-0.05, 0.05],    # Back-right
         [-0.05, -0.05],   # Back-left
 
-        # # # Far cardinal directions (0.1 units)
+        # # # # Far cardinal directions (0.1 units)
         # [0.2, 0.0],       # Far forward
         # [-0.2, 0.0],      # Far back
         # [0.0, 0.2],       # Far right
         # [0.0, -0.2],      # Far left
 
-        # # Far diagonal directions (0.2 units)
+        # # # Far diagonal directions (0.2 units)
         # [0.2, 0.2],       # Far forward-right
         # [0.2, -0.2],      # Far forward-left
         # [-0.2, 0.2],      # Far back-right
@@ -974,3 +981,102 @@ class Joystick(go1_base.Go1Env):
     # Apply mask so only one velocity type gets updated, others stay at current value
     x_kp1 = x_k - w_k * velocity_mask * (x_k - y_k * z_k)
     return x_kp1
+
+
+  def _get_foot_centric_height_map(self, data: mjx.Data) -> jax.Array:
+    """Get height map using foot-centric sampling similar to ETH approach.
+
+    Samples terrain height around each foot position using circular patterns
+    at multiple radii. Uses ~25 samples per foot for 100 total samples.
+
+    Returns:
+        jax.Array: Shape (100,) - 25 samples per foot, 4 feet total
+    """
+    # Get current foot positions from sites
+    foot_positions = data.site_xpos[self._feet_site_id]  # Shape: (4, 3)
+
+    # Get robot yaw angle from trunk quaternion
+    trunk_quat = data.qpos[3:7]  # (4,) - root body quaternion [w, x, y, z]
+    w, x, y, z = trunk_quat[0], trunk_quat[1], trunk_quat[2], trunk_quat[3]
+    yaw = jp.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+    # Create rotation matrix for yaw (around Z-axis)
+    cos_yaw = jp.cos(yaw)
+    sin_yaw = jp.sin(yaw)
+    rotation_matrix = jp.array([
+        [cos_yaw, -sin_yaw],
+        [sin_yaw,  cos_yaw]
+    ])
+
+    # Define sampling pattern in robot body frame: center + 3 concentric rings
+    # Total: 1 + 6 + 8 + 10 = 25 points per foot
+    sample_patterns = []
+
+    # Center point
+    sample_patterns.append([0.0, 0.0])
+
+    # Inner ring: 6 points at 0.08m radius
+    inner_radius = 0.08
+    for i in range(6):
+        angle = 2 * jp.pi * i / 6
+        sample_patterns.append([
+            inner_radius * jp.cos(angle),
+            inner_radius * jp.sin(angle)
+        ])
+
+    # Middle ring: 8 points at 0.16m radius
+    middle_radius = 0.16
+    for i in range(8):
+        angle = 2 * jp.pi * i / 8
+        sample_patterns.append([
+            middle_radius * jp.cos(angle),
+            middle_radius * jp.sin(angle)
+        ])
+
+    # Outer ring: 10 points at 0.24m radius
+    outer_radius = 0.24
+    for i in range(10):
+        angle = 2 * jp.pi * i / 10
+        sample_patterns.append([
+            outer_radius * jp.cos(angle),
+            outer_radius * jp.sin(angle)
+        ])
+
+    # Convert to array and rotate to world coordinates: (25, 2)
+    sample_offsets_body = jp.array(sample_patterns)
+    sample_offsets_world = (rotation_matrix @ sample_offsets_body.T).T  # Rotate each offset
+
+    # Create all sample positions for all feet
+    # Broadcast foot positions with rotated offsets
+    foot_pos_expanded = foot_positions[:, None, :2]      # (4, 1, 2) - only X,Y
+    offsets_expanded = sample_offsets_world[None, :, :]  # (1, 25, 2)
+
+    # All sample positions: (4 feet * 25 samples = 100 total)
+    sample_positions_2d = foot_pos_expanded + offsets_expanded  # (4, 25, 2)
+    sample_positions_2d = sample_positions_2d.reshape(-1, 2)    # (100, 2)
+
+    # Add Z coordinate (start rays 0.5m above sample positions)
+    ray_start_height = 0.5
+    sample_positions_3d = jp.concatenate([
+        sample_positions_2d,
+        jp.full((100, 1), ray_start_height)
+    ], axis=1)  # (100, 3)
+
+    # Ray direction (straight down)
+    ray_dir = jp.array([0.0, 0.0, -1.0])
+
+    # Cast all rays at once
+    distances, _ = ray.batch_ray(
+        self._mj_model, data, sample_positions_3d, ray_dir, (),
+        True, bodyexclude=self._robot_body_ids
+    )  # Shape: (100,)
+
+    # Convert distances to heights relative to foot positions
+    # For each sample, we need to subtract the offset and the ray start height
+    foot_heights = foot_positions[:, 2]  # (4,) - Z coordinates of feet
+    foot_heights_expanded = jp.repeat(foot_heights, 25)  # (100,) - repeat for each foot's samples
+
+    # Relative heights: positive = terrain below foot, negative = terrain above foot
+    relative_heights = foot_heights_expanded - (distances - ray_start_height)
+
+    return relative_heights  # Shape: (100,)
