@@ -48,7 +48,6 @@ def default_config() -> config_dict.ConfigDict:
               gyro=0.2,
               gravity=0.05,
               linvel=0.1,
-              height_map=0.001,  # Noise on height map.
           ),
       ),
       reward_config=config_dict.create(
@@ -57,8 +56,6 @@ def default_config() -> config_dict.ConfigDict:
               # Tracking.
               tracking_lin_vel=1.0,
               tracking_ang_vel=0.5,
-              linear_orthogonal_velocity=0.0,
-              world_direction=0.0,
 
               # Base reward.
               lin_vel_z=-0.5,
@@ -76,7 +73,6 @@ def default_config() -> config_dict.ConfigDict:
               energy=-0.001, 
               # Feet.
               feet_clearance=-0.2,
-              feet_height=-0.0,
               feet_slip=-0.1,
               feet_air_time=0.1,    
           ),
@@ -168,23 +164,6 @@ class Joystick(go1_base.Go1Env):
                 self._robot_body_ids.append(body_id)
                 break
             current_body_id = parent_id
-
-  def _reward_world_direction(self, info: dict, data: mjx.Data) -> jax.Array:
-    """Encourage maintaining initial world direction when command was issued."""
-    if "world_command" not in info:
-        return jp.zeros(())
-    
-    global_vel = self.get_global_linvel(data)
-    world_cmd = info["world_command"]
-    
-    # Only apply when there's a meaningful command
-    cmd_magnitude = jp.linalg.norm(world_cmd[:2])
-    
-    def calculate_reward():
-        world_vel_error = jp.sum(jp.square(world_cmd[:2] - global_vel[:2]))
-        return jp.exp(-world_vel_error * 0.5)  # Softer than main tracking
-    
-    return jp.where(cmd_magnitude > 0.01, calculate_reward(), 0.0)
 
   def reset(self, rng: jax.Array) -> mjx_env.State:
     qpos = self._init_q
@@ -430,27 +409,12 @@ class Joystick(go1_base.Go1Env):
         * self._config.noise_config.scales.linvel
     )
 
-    ## Old height map
-    height_map = self._get_vertical_height_map(data)
-
-    ## Takahiro style height map
-    #height_map = self._get_foot_centric_height_map(data)
-
-    info["rng"], noise_rng = jax.random.split(info["rng"])
-    noisy_height_map = height_map
-    # (
-    #     height_map
-    #     + (2 * jax.random.uniform(noise_rng, shape=height_map.shape) - 1)
-    #     * self._config.noise_config.level
-    #     * self._config.noise_config.scales.height_map)
-
     state = jp.hstack([
         noisy_linvel,  # 3, range [ ]
         noisy_gyro,  # 3, range [ ] 
         noisy_gravity,  # 3, range [ ] check if gravity or acc
         noisy_joint_angles - self._default_pose,  # 12. 
         noisy_joint_vel,  # 12. 
-        #noisy_height_map,  # 100 range [0, 1.0] (10x10 grid)
         info["last_act"],  # 12 
         info["command"],  # 3
     ])
@@ -461,7 +425,6 @@ class Joystick(go1_base.Go1Env):
     feet_vel = data.sensordata[self._foot_linvel_sensor_adr].ravel()
 
     privileged_state = jp.hstack([
-        #state,
         info["last_act"],  # 12
         info["command"],  # 3
         gyro,  # 3
@@ -471,7 +434,6 @@ class Joystick(go1_base.Go1Env):
         angvel,  # 3
         joint_angles - self._default_pose,  # 12
         joint_vel,  # 12
-        #height_map,  # 100 (10x10 grid)
         data.actuator_force,  # 12
         info["last_contact"],  # 4
         feet_vel,  # 4*3
@@ -503,10 +465,6 @@ class Joystick(go1_base.Go1Env):
         "tracking_ang_vel": self._reward_tracking_ang_vel(
             info["command"], self.get_gyro(data)
         ),
-        "linear_orthogonal_velocity": self._reward_linear_orthogonal_velocity(
-            info["command"], self.get_local_linvel(data)
-        ),
-        "world_direction": self._reward_world_direction(info, data),  # NEW
         "lin_vel_z": self._cost_lin_vel_z(self.get_global_linvel(data)),
         "ang_vel_xy": self._cost_ang_vel_xy(self.get_global_angvel(data)),
         "orientation": self._cost_orientation(self.get_upvector(data)),
@@ -520,9 +478,6 @@ class Joystick(go1_base.Go1Env):
         "energy": self._cost_energy(data.qvel[6:], data.actuator_force),
         "feet_slip": self._cost_feet_slip(data, contact, info),
         "feet_clearance": self._cost_feet_clearance(data, contact),
-        "feet_height": self._cost_feet_height(
-            info["swing_peak"], first_contact, info
-        ),
         "feet_air_time": self._reward_feet_air_time(
             info["feet_air_time"], first_contact, info["command"]
         ),
@@ -557,43 +512,6 @@ class Joystick(go1_base.Go1Env):
     ang_vel_error = jp.square(commands[2] - ang_vel[2])
     return jp.exp(-ang_vel_error / self._config.reward_config.tracking_sigma)
 
-  def _reward_linear_orthogonal_velocity(
-      self,
-      commands: jax.Array,
-      local_vel: jax.Array,
-  ) -> jax.Array:
-    """Reward for staying aligned with desired velocity direction.
-    
-    Implements r_lvo = exp(-3.0 * |v_o|²) where v_o is the orthogonal component
-    of velocity relative to the desired direction.
-    """
-    # Get current velocity (xy only)
-    v = local_vel[:2]
-    
-    # Get desired velocity magnitude
-    cmd_magnitude = jp.linalg.norm(commands[:2])
-    
-    # Only apply reward if there's a meaningful command
-    def calculate_reward():
-        # Get desired velocity direction (normalized)
-        v_des = commands[:2] / cmd_magnitude
-        
-        # Calculate orthogonal component: v_o = v - (v_des · v)v_des
-        dot_product = jp.dot(v_des, v)
-        v_parallel = dot_product * v_des
-        v_o = v - v_parallel
-        
-        # Calculate reward: exp(- |v_o|²)
-        v_o_squared_magnitude = jp.sum(jp.square(v_o))
-        return jp.exp(- v_o_squared_magnitude)
-    
-    # Return reward only if command is meaningful, otherwise no reward (0.0)
-    return jp.where(
-        cmd_magnitude > 0.01,
-        calculate_reward(),
-        0.0
-    )
-
   # Base-related rewards.
 
   def _cost_lin_vel_z(self, global_linvel) -> jax.Array:
@@ -603,10 +521,6 @@ class Joystick(go1_base.Go1Env):
   def _cost_ang_vel_xy(self, global_angvel) -> jax.Array:
     # Penalize xy axes base angular velocity.
     return jp.sum(jp.square(global_angvel[:2]))
-
-  # def _cost_orientation(self, torso_zaxis: jax.Array) -> jax.Array:
-  #   # Penalize non flat base orientation.
-  #   return jp.sum(jp.square(torso_zaxis[:2]))
 
   def _cost_orientation(self, torso_zaxis: jax.Array,
                          tolerance: float = 0.15,   ## Consider increasing this a bit
@@ -681,7 +595,15 @@ class Joystick(go1_base.Go1Env):
     return jp.sum(out_of_limits)
 
   # Feet related rewards.
-
+  def _reward_feet_air_time(
+      self, air_time: jax.Array, first_contact: jax.Array, commands: jax.Array
+  ) -> jax.Array:
+    # Reward air time.
+    cmd_norm = jp.linalg.norm(commands)
+    rew_air_time = jp.sum(jp.exp(-jp.square(air_time - self._config.reward_config.desired_foot_air_time)) * first_contact)
+    rew_air_time *= cmd_norm > 0.01  # No reward for zero commands.
+    return rew_air_time
+  
   def _cost_feet_slip(
       self, data: mjx.Data, contact: jax.Array, info: dict[str, Any]
   ) -> jax.Array:
@@ -799,75 +721,6 @@ class Joystick(go1_base.Go1Env):
         
         return terrain_heights
 
-  def _get_vertical_height_map(self, data: mjx.Data) -> jax.Array:
-        """Get height map using vertical ray casting independent of robot tilt.
-        
-        Creates a 10x10 grid of vertical rays centered on the robot's position,
-        casting downward in world coordinates. Grid rotates with robot's yaw
-        but rays remain vertical regardless of robot pitch/roll.
-        """
-        # Get robot's world position and orientation from root body (freejoint)
-        trunk_pos = data.qpos[0:3]  # (3,) - root body position
-        trunk_quat = data.qpos[3:7]  # (4,) - root body quaternion [w, x, y, z]
-        
-        # Extract yaw angle from quaternion
-        # For quaternion [w, x, y, z], yaw = atan2(2*(w*z + x*y), 1 - 2*(y^2 + z^2))
-        w, x, y, z = trunk_quat[0], trunk_quat[1], trunk_quat[2], trunk_quat[3]
-        yaw = jp.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
-        
-        # Create rotation matrix for yaw only (around Z-axis)
-        cos_yaw = jp.cos(yaw)
-        sin_yaw = jp.sin(yaw)
-        rotation_matrix = jp.array([
-            [cos_yaw, -sin_yaw],
-            [sin_yaw,  cos_yaw]
-        ])
-        
-        # Create 10x10 grid of sampling positions relative to robot center
-        # Grid covers 1m x 1m area (±0.5m in each direction) with ~0.111m spacing
-        grid_positions = []
-        for i in range(10):
-            for j in range(10):
-                # Convert grid indices to robot-relative offsets
-                x_robot = -0.5 + i * (1.0 / 9)  # -0.5 to +0.5 (forward/back in robot frame)
-                y_robot = -0.5 + j * (1.0 / 9)  # -0.5 to +0.5 (left/right in robot frame)
-                
-                # Rotate the offset by robot's yaw to get world coordinates
-                robot_offset = jp.array([x_robot, y_robot])
-                world_offset = rotation_matrix @ robot_offset
-                
-                # Create world position by adding rotated offset to robot position
-                world_pos = jp.array([
-                    trunk_pos[0] + world_offset[0],
-                    trunk_pos[1] + world_offset[1], 
-                    trunk_pos[2] + 0.5  # Start ray 0.5m above robot
-                ])
-                grid_positions.append(world_pos)
-        
-        # Convert to array: (100, 3)
-        ray_start_positions = jp.array(grid_positions)
-        
-        # Debug: Print first few ray positions for comparison
-        # print(f"Robot pos: {trunk_pos}")
-        # print(f"Robot yaw: {yaw}")
-        # print(f"First 5 ray start positions:\n{ray_start_positions[:5]}")
-        
-        # Vertical downward ray direction (world coordinates - always straight down)
-        ray_dir = jp.array([0.0, 0.0, -1.0])
-        
-        # Cast all rays at once
-        distances, _ = ray.batch_ray(
-            self._mj_model, data, ray_start_positions, ray_dir, (),
-            True, bodyexclude=self._robot_body_ids
-        )  # Shape: (100,)
-        
-        # Convert distances to heights relative to robot
-        # Subtract 0.5 to account for ray start offset
-        # Positive values = terrain below robot, Negative = terrain above robot
-        relative_heights = distances - 0.5
-        
-        return relative_heights  # Shape: (100,)
-
   def _cost_feet_clearance(self, data: mjx.Data, contact: jax.Array) -> jax.Array:
         """Penalize insufficient clearance during swing phase only."""
         feet_vel = data.sensordata[self._foot_linvel_sensor_adr]
@@ -884,26 +737,6 @@ class Joystick(go1_base.Go1Env):
         insufficient_clearance = jp.maximum(0, min_safe_clearance - clearance)
 
         return jp.sum(insufficient_clearance * vel_norm * (~contact))
-
-  def _cost_feet_height(
-      self,
-      swing_peak: jax.Array,
-      first_contact: jax.Array,
-      info: dict[str, Any],
-  ) -> jax.Array:
-      """Penalize swing height error."""
-      cmd_norm = jp.linalg.norm(info["command"])
-      error = swing_peak / self._config.reward_config.max_foot_height - 1.0
-      return jp.sum(jp.square(error) * first_contact) * (cmd_norm > 0.01)
-
-  def _reward_feet_air_time(
-      self, air_time: jax.Array, first_contact: jax.Array, commands: jax.Array
-  ) -> jax.Array:
-    # Reward air time.
-    cmd_norm = jp.linalg.norm(commands)
-    rew_air_time = jp.sum(jp.exp(-jp.square(air_time - self._config.reward_config.desired_foot_air_time)) * first_contact)
-    rew_air_time *= cmd_norm > 0.01  # No reward for zero commands.
-    return rew_air_time
 
   # Perturbation and command sampling.
 
@@ -983,102 +816,3 @@ class Joystick(go1_base.Go1Env):
     # Apply mask so only one velocity type gets updated, others stay at current value
     x_kp1 = x_k - w_k * velocity_mask * (x_k - y_k * z_k)
     return x_kp1
-
-
-  def _get_foot_centric_height_map(self, data: mjx.Data) -> jax.Array:
-    """Get height map using foot-centric sampling similar to ETH approach.
-
-    Samples terrain height around each foot position using circular patterns
-    at multiple radii. Uses ~25 samples per foot for 100 total samples.
-
-    Returns:
-        jax.Array: Shape (100,) - 25 samples per foot, 4 feet total
-    """
-    # Get current foot positions from sites
-    foot_positions = data.site_xpos[self._feet_site_id]  # Shape: (4, 3)
-
-    # Get robot yaw angle from trunk quaternion
-    trunk_quat = data.qpos[3:7]  # (4,) - root body quaternion [w, x, y, z]
-    w, x, y, z = trunk_quat[0], trunk_quat[1], trunk_quat[2], trunk_quat[3]
-    yaw = jp.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
-
-    # Create rotation matrix for yaw (around Z-axis)
-    cos_yaw = jp.cos(yaw)
-    sin_yaw = jp.sin(yaw)
-    rotation_matrix = jp.array([
-        [cos_yaw, -sin_yaw],
-        [sin_yaw,  cos_yaw]
-    ])
-
-    # Define sampling pattern in robot body frame: center + 3 concentric rings
-    # Total: 1 + 6 + 8 + 10 = 25 points per foot
-    sample_patterns = []
-
-    # Center point
-    sample_patterns.append([0.0, 0.0])
-
-    # Inner ring: 6 points at 0.08m radius
-    inner_radius = 0.08
-    for i in range(6):
-        angle = 2 * jp.pi * i / 6
-        sample_patterns.append([
-            inner_radius * jp.cos(angle),
-            inner_radius * jp.sin(angle)
-        ])
-
-    # Middle ring: 8 points at 0.16m radius
-    middle_radius = 0.16
-    for i in range(8):
-        angle = 2 * jp.pi * i / 8
-        sample_patterns.append([
-            middle_radius * jp.cos(angle),
-            middle_radius * jp.sin(angle)
-        ])
-
-    # Outer ring: 10 points at 0.24m radius
-    outer_radius = 0.24
-    for i in range(10):
-        angle = 2 * jp.pi * i / 10
-        sample_patterns.append([
-            outer_radius * jp.cos(angle),
-            outer_radius * jp.sin(angle)
-        ])
-
-    # Convert to array and rotate to world coordinates: (25, 2)
-    sample_offsets_body = jp.array(sample_patterns)
-    sample_offsets_world = (rotation_matrix @ sample_offsets_body.T).T  # Rotate each offset
-
-    # Create all sample positions for all feet
-    # Broadcast foot positions with rotated offsets
-    foot_pos_expanded = foot_positions[:, None, :2]      # (4, 1, 2) - only X,Y
-    offsets_expanded = sample_offsets_world[None, :, :]  # (1, 25, 2)
-
-    # All sample positions: (4 feet * 25 samples = 100 total)
-    sample_positions_2d = foot_pos_expanded + offsets_expanded  # (4, 25, 2)
-    sample_positions_2d = sample_positions_2d.reshape(-1, 2)    # (100, 2)
-
-    # Add Z coordinate (start rays 0.5m above sample positions)
-    ray_start_height = 0.5
-    sample_positions_3d = jp.concatenate([
-        sample_positions_2d,
-        jp.full((100, 1), ray_start_height)
-    ], axis=1)  # (100, 3)
-
-    # Ray direction (straight down)
-    ray_dir = jp.array([0.0, 0.0, -1.0])
-
-    # Cast all rays at once
-    distances, _ = ray.batch_ray(
-        self._mj_model, data, sample_positions_3d, ray_dir, (),
-        True, bodyexclude=self._robot_body_ids
-    )  # Shape: (100,)
-
-    # Convert distances to heights relative to foot positions
-    # For each sample, we need to subtract the offset and the ray start height
-    foot_heights = foot_positions[:, 2]  # (4,) - Z coordinates of feet
-    foot_heights_expanded = jp.repeat(foot_heights, 25)  # (100,) - repeat for each foot's samples
-
-    # Relative heights: positive = terrain below foot, negative = terrain above foot
-    relative_heights = foot_heights_expanded - (distances - ray_start_height)
-
-    return relative_heights  # Shape: (100,)
