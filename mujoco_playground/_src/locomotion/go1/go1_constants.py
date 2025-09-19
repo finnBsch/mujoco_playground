@@ -60,6 +60,14 @@ FEET_GEOMS = [
     "RL",
 ]
 
+KNEE_SITES = [f"{site}_knee" for site in FEET_SITES]
+
+KNEE_GEOMS = [
+    "fr_calf1",
+    "fl_calf1", 
+    "rr_calf1",
+    "rl_calf1",
+]
 
 FEET_POS_SENSOR = [f"{site}_pos" for site in FEET_SITES]
 

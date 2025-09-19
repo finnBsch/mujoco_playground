@@ -180,8 +180,8 @@
               mass="0.195862" diaginertia="0.00149767 0.00148468 3.58427e-05"/>
             <joint class="knee" name="RR_calf_joint"/>
             <geom class="visual" mesh="calf"/>
-            <geom class="calf1" contype="1" conaffinity="1"/>
-            <geom class="calf2"/>
+            <geom name="rr_calf1" class="calf1" contype="1" conaffinity="1"/>
+            <geom name="rr_calf2" class="calf2"/>
             <geom name="RR" class="foot"/>
             <site name="RR" pos="0 0 -0.213" type="sphere" size="0.023" group="5"/>
           </body>
@@ -208,8 +208,8 @@
               mass="0.195862" diaginertia="0.00149767 0.00148468 3.58427e-05"/>
             <joint class="knee" name="RL_calf_joint"/>
             <geom class="visual" mesh="calf"/>
-            <geom class="calf1" contype="1" conaffinity="1"/>
-            <geom class="calf2"/>
+            <geom name="rl_calf1" class="calf1" contype="1" conaffinity="1"/>
+            <geom name="rl_calf2" class="calf2"/>
             <geom name="RL" class="foot"/>
             <site name="RL" pos="0 0 -0.213" type="sphere" size="0.023" group="5"/>
           </body>
@@ -254,4 +254,5 @@
     
  
   </sensor>
+
 </mujoco>
