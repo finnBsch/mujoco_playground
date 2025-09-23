@@ -30,7 +30,7 @@ dependencies = [
     "lxml",
     "ml_collections",
     "mujoco-mjx>=3.2.7",
-    "mujoco>=3.3.5",
+    "mujoco==3.3.5",
     "tqdm",
 ]
 keywords = ["mjx", "mujoco", "sim2real", "reinforcement learning"]
